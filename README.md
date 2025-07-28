@@ -39,8 +39,8 @@ A powerful MERN stack backend for Excel file analytics with 2D/3D chart generati
 
 1. Clone the repository:
 ```bash
-git clone <repository-url>
-cd excel-analytics-backend
+git clone https://github.com/gourab8389/excel-analytics-server.git
+cd excel-analytics-server
 ```
 
 2. Install dependencies:
