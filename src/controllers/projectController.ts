@@ -1,0 +1,383 @@
+import { Request, Response } from "express";
+import { asyncHandler } from "../middleware/errorHandler";
+import { createProjectSchema, inviteUserSchema } from "../utils/validation";
+import { HTTP_STATUS, PROJECT_ROLES, PROJECT_TYPES } from "../utils/constants";
+import { generateInvitationToken } from "../utils/jwt";
+import { sendInvitationEmail } from "../services/emailService";
+import prisma from "../config/database";
+
+export const createProject = asyncHandler(async (req: any, res: Response) => {
+  const { error, value } = createProjectSchema.validate(req.body);
+
+  if (error) {
+    return res.status(HTTP_STATUS.BAD_REQUEST).json({
+      success: false,
+      message: error.details[0].message,
+    });
+  }
+
+  const { name, description, type } = value;
+  const userId = req.user.id;
+
+  // Create project
+  const project = await prisma.project.create({
+    data: {
+      name,
+      description,
+      type,
+      creatorId: userId,
+    },
+  });
+
+  // Add creator as admin member
+  await prisma.projectMember.create({
+    data: {
+      userId,
+      projectId: project.id,
+      role:
+        type === PROJECT_TYPES.ORGANIZATION
+          ? PROJECT_ROLES.ADMIN
+          : PROJECT_ROLES.MEMBER,
+    },
+  });
+
+  res.status(HTTP_STATUS.CREATED).json({
+    success: true,
+    message: "Project created successfully",
+    data: { project },
+  });
+});
+
+export const getUserProjects = asyncHandler(async (req: any, res: Response) => {
+  const userId = req.user.id;
+
+  const projectMembers = await prisma.projectMember.findMany({
+    where: { userId },
+    include: {
+      project: {
+        include: {
+          _count: {
+            select: {
+              members: true,
+              uploads: true,
+            },
+          },
+        },
+      },
+    },
+    orderBy: {
+      joinedAt: "desc",
+    },
+  });
+
+  const projects = projectMembers.map((member) => ({
+    ...member.project,
+    role: member.role,
+    joinedAt: member.joinedAt,
+    memberCount: member.project._count.members,
+    uploadCount: member.project._count.uploads,
+  }));
+
+  res.status(HTTP_STATUS.OK).json({
+    success: true,
+    data: { projects },
+  });
+});
+
+export const getProject = asyncHandler(async (req: any, res: Response) => {
+  const { projectId } = req.params;
+
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
+    include: {
+      creator: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+        },
+      },
+      members: {
+        include: {
+          user: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+            },
+          },
+        },
+      },
+      _count: {
+        select: {
+          uploads: true,
+        },
+      },
+    },
+  });
+
+  if (!project) {
+    return res.status(HTTP_STATUS.NOT_FOUND).json({
+      success: false,
+      message: "Project not found",
+    });
+  }
+
+  res.status(HTTP_STATUS.OK).json({
+    success: true,
+    data: { project },
+  });
+});
+
+export const inviteUser = asyncHandler(async (req: any, res: Response) => {
+  const { error, value } = inviteUserSchema.validate(req.body);
+
+  if (error) {
+    return res.status(HTTP_STATUS.BAD_REQUEST).json({
+      success: false,
+      message: error.details[0].message,
+    });
+  }
+
+  const { email, role } = value;
+  const { projectId } = req.params;
+  const inviterId = req.user.id;
+
+  // Get project and inviter details
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
+  });
+
+  const inviter = await prisma.user.findUnique({
+    where: { id: inviterId },
+  });
+
+  const inviteeUser = await prisma.user.findUnique({
+    where: { email },
+  });
+
+  if (!project || !inviter) {
+    return res.status(HTTP_STATUS.NOT_FOUND).json({
+      success: false,
+      message: "Project or user not found",
+    });
+  }
+
+  // Check if user is already a member (only if user exists)
+  if (inviteeUser) {
+    const existingMember = await prisma.projectMember.findUnique({
+      where: {
+        userId_projectId: {
+          userId: inviteeUser.id,
+          projectId,
+        },
+      },
+    });
+
+    if (existingMember) {
+      return res.status(HTTP_STATUS.CONFLICT).json({
+        success: false,
+        message: "User is already a member of this project",
+      });
+    }
+  }
+
+  // Generate invitation token
+  const invitationToken = generateInvitationToken(email, projectId);
+
+  // Create invitation record
+  await prisma.invitation.create({
+    data: {
+      email,
+      projectId,
+      token: invitationToken,
+      role,
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+    },
+  });
+
+  // Send invitation email
+  await sendInvitationEmail(
+    email,
+    project.name,
+    `${inviter.firstName} ${inviter.lastName}`,
+    invitationToken
+  );
+
+  res.status(HTTP_STATUS.OK).json({
+    success: true,
+    message: "Invitation sent successfully",
+    data: {
+      email,
+      projectId,
+      token: invitationToken,
+    },
+  });
+});
+
+export const acceptInvitation = asyncHandler(
+  async (req: Request, res: Response) => {
+    const { token } = req.body;
+
+    if (!token) {
+      return res.status(HTTP_STATUS.BAD_REQUEST).json({
+        success: false,
+        message: "Invitation token is required",
+      });
+    }
+
+    // Find invitation
+    const invitation = await prisma.invitation.findUnique({
+      where: { token },
+    });
+
+    if (!invitation || invitation.expiresAt < new Date()) {
+      return res.status(HTTP_STATUS.BAD_REQUEST).json({
+        success: false,
+        message: "Invalid or expired invitation",
+      });
+    }
+
+    if (invitation.status !== "PENDING") {
+      return res.status(HTTP_STATUS.BAD_REQUEST).json({
+        success: false,
+        message: "Invitation has already been processed",
+      });
+    }
+
+    // Find or create user
+    let user = await prisma.user.findUnique({
+      where: { email: invitation.email },
+    });
+
+    if (!user) {
+      return res.status(HTTP_STATUS.BAD_REQUEST).json({
+        success: false,
+        message: "Please register an account first",
+      });
+    }
+
+    // Add user to project
+    await prisma.projectMember.create({
+      data: {
+        userId: user.id,
+        projectId: invitation.projectId,
+        role: invitation.role,
+      },
+    });
+
+    // Update invitation status
+    await prisma.invitation.update({
+      where: { id: invitation.id },
+      data: { status: "ACCEPTED" },
+    });
+
+    res.status(HTTP_STATUS.OK).json({
+      success: true,
+      message: "Invitation accepted successfully",
+    });
+  }
+);
+
+export const updateProject = asyncHandler(async (req: any, res: Response) => {
+  const { projectId } = req.params;
+  const { name, description } = req.body;
+
+  // Validate input
+  if (!name || !description) {
+    return res.status(HTTP_STATUS.BAD_REQUEST).json({
+      success: false,
+      message: "Name and description are required",
+    });
+  }
+
+  // Get project and user's membership
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
+  });
+
+  if (!project) {
+    return res.status(HTTP_STATUS.NOT_FOUND).json({
+      success: false,
+      message: "Project not found",
+    });
+  }
+
+  const projectMember = await prisma.projectMember.findUnique({
+    where: {
+      userId_projectId: {
+        userId: req.user.id,
+        projectId,
+      },
+    },
+  });
+
+  if (!projectMember) {
+    return res.status(HTTP_STATUS.FORBIDDEN).json({
+      success: false,
+      message: "You are not a member of this project",
+    });
+  }
+
+  // Check if user is creator OR admin (members cannot update)
+  const isCreator = project.creatorId === req.user.id;
+  const isAdmin = projectMember.role === PROJECT_ROLES.ADMIN;
+
+  if (!isCreator && !isAdmin) {
+    return res.status(HTTP_STATUS.FORBIDDEN).json({
+      success: false,
+      message: "You do not have permission to update this project. Only creators and admins can update projects.",
+    });
+  }
+
+  // Update project
+  const updatedProject = await prisma.project.update({
+    where: { id: projectId },
+    data: {
+      name,
+      description,
+    },
+  });
+
+  res.status(HTTP_STATUS.OK).json({
+    success: true,
+    message: "Project updated successfully",
+    data: { project: updatedProject },
+  });
+});
+
+export const deleteProject = asyncHandler(async (req: any, res: Response) => {
+  const { projectId } = req.params;
+
+  // Get project
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
+  });
+
+  if (!project) {
+    return res.status(HTTP_STATUS.NOT_FOUND).json({
+      success: false,
+      message: "Project not found",
+    });
+  }
+
+  // Check if user is creator (only creators can delete)
+  if (project.creatorId !== req.user.id) {
+    return res.status(HTTP_STATUS.FORBIDDEN).json({
+      success: false,
+      message: "You do not have permission to delete this project. Only the project creator can delete projects.",
+    });
+  }
+
+  // Delete project (cascade will handle related records)
+  await prisma.project.delete({
+    where: { id: projectId },
+  });
+
+  res.status(HTTP_STATUS.OK).json({
+    success: true,
+    message: "Project deleted successfully",
+  });
+});

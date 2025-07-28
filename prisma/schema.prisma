@@ -1,0 +1,152 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  email       String   @unique
+  password    String
+  firstName   String
+  lastName    String
+  isVerified  Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  projectMembers ProjectMember[]
+  uploads        Upload[]
+  createdProjects Project[] @relation("ProjectCreator")
+
+  @@map("users")
+}
+
+model Project {
+  id          String      @id @default(auto()) @map("_id") @db.ObjectId
+  name        String
+  description String?
+  type        ProjectType @default(SINGLE)
+  creatorId   String      @db.ObjectId
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  // Relations
+  creator User @relation("ProjectCreator", fields: [creatorId], references: [id])
+  members ProjectMember[]
+  uploads Upload[]
+
+  @@map("projects")
+}
+
+model ProjectMember {
+  id        String      @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String      @db.ObjectId
+  projectId String      @db.ObjectId
+  role      ProjectRole @default(MEMBER)
+  joinedAt  DateTime    @default(now())
+
+  // Relations
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, projectId])
+  @@map("project_members")
+}
+
+model Upload {
+  id          String     @id @default(auto()) @map("_id") @db.ObjectId
+  fileName    String
+  originalName String
+  filePath    String
+  fileSize    Int
+  userId      String     @db.ObjectId
+  projectId   String     @db.ObjectId
+  status      UploadStatus @default(PROCESSING)
+  uploadedAt  DateTime   @default(now())
+  processedAt DateTime?
+
+  // Relations
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  data      ExcelData[]
+  charts    Chart[]
+
+  @@map("uploads")
+}
+
+model ExcelData {
+  id       String @id @default(auto()) @map("_id") @db.ObjectId
+  uploadId String @db.ObjectId
+  headers  String[] // Column headers
+  rows     Json[]   // Array of row data
+  metadata Json?    // Additional metadata
+
+  // Relations
+  upload Upload @relation(fields: [uploadId], references: [id], onDelete: Cascade)
+
+  @@map("excel_data")
+}
+
+model Chart {
+  id        String    @id @default(auto()) @map("_id") @db.ObjectId
+  uploadId  String    @db.ObjectId
+  name      String
+  type      ChartType
+  config    Json      // Chart configuration (axes, styling, etc.)
+  data      Json      // Processed chart data
+  createdAt DateTime  @default(now())
+
+  // Relations
+  upload Upload @relation(fields: [uploadId], references: [id], onDelete: Cascade)
+
+  @@map("charts")
+}
+
+model Invitation {
+  id        String           @id @default(auto()) @map("_id") @db.ObjectId
+  email     String
+  projectId String           @db.ObjectId
+  token     String           @unique
+  role      ProjectRole      @default(MEMBER)
+  status    InvitationStatus @default(PENDING)
+  expiresAt DateTime
+  createdAt DateTime         @default(now())
+
+  @@map("invitations")
+}
+
+enum ProjectType {
+  SINGLE
+  ORGANIZATION
+}
+
+enum ProjectRole {
+  ADMIN
+  MEMBER
+}
+
+enum UploadStatus {
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum ChartType {
+  BAR
+  LINE
+  PIE
+  SCATTER
+  COLUMN_3D
+  BAR_3D
+  LINE_3D
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  EXPIRED
+}
