@@ -29,12 +29,6 @@ A powerful MERN stack backend for Excel file analytics with 2D/3D chart generati
 
 ## Getting Started
 
-### Prerequisites
-
-- Node.js (v16 or higher)
-- MongoDB
-- npm or yarn
-
 ### Installation
 
 1. Clone the repository:
@@ -127,49 +121,3 @@ npm start
 
 ### Users
 - `GET /api/users/dashboard` - Get user dashboard data
-
-## Database Schema
-
-The application uses MongoDB with Prisma ORM. Key models include:
-
-- **User**: User authentication and profile data
-- **Project**: Project information and settings
-- **ProjectMember**: User-project relationships with roles
-- **Upload**: File upload records and metadata
-- **ExcelData**: Processed Excel file data
-- **Chart**: Chart configurations and data
-- **Invitation**: Project invitation system
-
-## Project Structure
-
-```
-src/
-├── controllers/     # Request handlers
-├── middleware/      # Custom middleware
-├── routes/         # API route definitions
-├── services/       # Business logic services
-├── utils/          # Utility functions
-├── types/          # TypeScript type definitions
-├── config/         # Configuration files
-├── templates/      # Email templates
-└── app.ts         # Application entry point
-```
-
-## Security Features
-
-- JWT-based authentication
-- Password hashing with bcrypt
-- Rate limiting
-- CORS configuration
-- Helmet security headers
-- Input validation with Joi
-- File type validation
-- Role-based access control
-
-## Development Guidelines
-
-1. **TypeScript**: Use proper typing for all functions and data structures
-2. **Error Handling**: Use the asyncHandler wrapper for async routes
-3. **Validation**: Validate all inputs using Joi schemas
-4. **Security**: Follow security best practices for file uploads and data handling
-5. **Documentation**: Document all API endpoints and complex functions
