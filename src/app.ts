@@ -42,7 +42,7 @@ const getAllowedOrigins = () => {
 };
 
 const corsOptions = {
-  origin: (origin, callback) => {
+  origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
     const allowedOrigins = getAllowedOrigins();
     
     // Allow requests with no origin (like mobile apps or curl requests)
@@ -80,6 +80,7 @@ app.get('/', (req, res) => {
     success: true,
     message: 'Welcome to the Excel Analytics API',
     timestamp: new Date().toISOString(),
+    allowedOrigins: getAllowedOrigins(),
   });
 });
 
@@ -90,7 +91,6 @@ app.use('/api/uploads', uploadRoutes);
 app.use('/api/charts', chartRoutes);
 app.use('/api/users', userRoutes);
 
-
 // Global error handler
 app.use(errorHandler);
 
@@ -98,7 +98,7 @@ app.use(errorHandler);
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📝 Environment: ${process.env.NODE_ENV}`);
-  console.log(`🌍 CORS enabled for: ${process.env.FRONTEND_URL || 'http://localhost:3000'}`);
+  console.log(`🌍 CORS enabled for origins:`, getAllowedOrigins());
 });
 
 export default app;
