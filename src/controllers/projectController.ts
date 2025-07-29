@@ -449,3 +449,64 @@ export const updateMemberRole = asyncHandler(
     });
   }
 );
+
+export const removeMember = asyncHandler(async (req: any, res: Response) => {
+  const { projectId } = req.params;
+  const { userId } = req.body;
+
+  // Validate input
+  if (!userId) {
+    return res.status(HTTP_STATUS.BAD_REQUEST).json({
+      success: false,
+      message: "User ID is required",
+    });
+  }
+
+  // Get project and user's membership
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
+  });
+
+  if (!project) {
+    return res.status(HTTP_STATUS.NOT_FOUND).json({
+      success: false,
+      message: "Project not found",
+    });
+  }
+
+  const projectMember = await prisma.projectMember.findUnique({
+    where: {
+      userId_projectId: {
+        userId: req.user.id,
+        projectId,
+      },
+    },
+  });
+
+  // only project creator can remove members
+  if (
+    !projectMember ||
+    (projectMember.role !== PROJECT_ROLES.ADMIN &&
+      project.creatorId !== req.user.id)
+  ) {
+    return res.status(HTTP_STATUS.FORBIDDEN).json({
+      success: false,
+      message: "You do not have permission to remove members",
+    });
+  }
+
+  // Remove member
+  await prisma.projectMember.delete({
+    where: {
+      userId_projectId: {
+        userId,
+        projectId,
+      },
+    },
+  });
+
+  res.status(HTTP_STATUS.OK).json({
+    success: true,
+    message: "Member removed successfully",
+  });
+})
