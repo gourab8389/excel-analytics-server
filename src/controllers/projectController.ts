@@ -201,6 +201,7 @@ export const inviteUser = asyncHandler(async (req: any, res: Response) => {
   // Send invitation email
   await sendInvitationEmail(
     email,
+    inviter.email,
     project.name,
     `${inviter.firstName} ${inviter.lastName}`,
     invitationToken
@@ -321,14 +322,16 @@ export const updateProject = asyncHandler(async (req: any, res: Response) => {
     });
   }
 
-  // Check if user is creator OR admin (members cannot update)
-  const isCreator = project.creatorId === req.user.id;
-  const isAdmin = projectMember.role === PROJECT_ROLES.ADMIN;
+  // Check if user is admin (members cannot update)
+  const isAdmin =
+    projectMember.role === PROJECT_ROLES.ADMIN ||
+    project.creatorId === req.user.id;
 
-  if (!isCreator && !isAdmin) {
+  if (!isAdmin) {
     return res.status(HTTP_STATUS.FORBIDDEN).json({
       success: false,
-      message: "You do not have permission to update this project. Only creators and admins can update projects.",
+      message:
+        "You do not have permission to update this project. Only creators and admins can update projects.",
     });
   }
 
@@ -367,7 +370,8 @@ export const deleteProject = asyncHandler(async (req: any, res: Response) => {
   if (project.creatorId !== req.user.id) {
     return res.status(HTTP_STATUS.FORBIDDEN).json({
       success: false,
-      message: "You do not have permission to delete this project. Only the project creator can delete projects.",
+      message:
+        "You do not have permission to delete this project. Only the project creator can delete projects.",
     });
   }
 

@@ -14,6 +14,7 @@ const transporter = nodemailer.createTransport({
 
 export const sendInvitationEmail = async (
   email: string,
+  senderEmail: string,
   projectName: string,
   inviterName: string,
   invitationToken: string
@@ -29,7 +30,7 @@ export const sendInvitationEmail = async (
     .replace('{{inviteLink}}', inviteLink);
 
   const mailOptions = {
-    from: `${process.env.FROM_NAME} <${process.env.FROM_EMAIL}>`,
+    from: `${process.env.FROM_NAME} <${senderEmail}>`,
     to: email,
     subject: `Invitation to join ${projectName}`,
     html: htmlTemplate,

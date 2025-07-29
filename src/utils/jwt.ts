@@ -1,6 +1,6 @@
 import jwt from 'jsonwebtoken';
 import { JWTPayload } from '../types/auth';
-const JWT_SECRET = process.env.JWT_SECRET|| 'default_secret_key';
+const JWT_SECRET = process.env.JWT_SECRET|| '1234567890abcdef';
 
 export const generateToken = (payload: JWTPayload): string => {
   return jwt.sign(payload, JWT_SECRET, {
