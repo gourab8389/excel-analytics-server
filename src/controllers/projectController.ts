@@ -322,16 +322,14 @@ export const updateProject = asyncHandler(async (req: any, res: Response) => {
     });
   }
 
-  // Check if user is admin (members cannot update)
-  const isAdmin =
-    projectMember.role === PROJECT_ROLES.ADMIN ||
-    project.creatorId === req.user.id;
+  // Check if user is creator (members cannot update)
+  const isCreator = project.creatorId === req.user.id;
 
-  if (!isAdmin) {
+  if (!isCreator) {
     return res.status(HTTP_STATUS.FORBIDDEN).json({
       success: false,
       message:
-        "You do not have permission to update this project. Only creators and admins can update projects.",
+        "You do not have permission to update this project. Only creators can update projects.",
     });
   }
 
@@ -421,11 +419,7 @@ export const updateMemberRole = asyncHandler(
     });
 
     // only project creator can update member roles
-    if (
-      !projectMember ||
-      (projectMember.role !== PROJECT_ROLES.ADMIN &&
-        project.creatorId !== req.user.id)
-    ) {
+    if (!projectMember && project.creatorId !== req.user.id) {
       return res.status(HTTP_STATUS.FORBIDDEN).json({
         success: false,
         message: "You do not have permission to update member roles",
@@ -484,11 +478,7 @@ export const removeMember = asyncHandler(async (req: any, res: Response) => {
   });
 
   // only project creator can remove members
-  if (
-    !projectMember ||
-    (projectMember.role !== PROJECT_ROLES.ADMIN &&
-      project.creatorId !== req.user.id)
-  ) {
+  if (!projectMember && project.creatorId !== req.user.id) {
     return res.status(HTTP_STATUS.FORBIDDEN).json({
       success: false,
       message: "You do not have permission to remove members",
