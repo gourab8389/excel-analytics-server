@@ -16,7 +16,7 @@ router.use(authenticate);
 router.post('/:projectId', checkProjectAccess, uploadExcel.single('file'), uploadFile);
 router.get('/:projectId', checkProjectAccess, getUploads);
 
-router.get('/file/:uploadId', getUpload);
-router.delete('/file/:uploadId', deleteUpload);
+router.get('/file/:uploadId', checkProjectAccess, getUpload);
+router.delete('/file/:uploadId', checkProjectAccess, deleteUpload);
 
 export default router;

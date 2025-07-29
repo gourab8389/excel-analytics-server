@@ -23,7 +23,7 @@ router.post('/accept-invitation', acceptInvitation);
 
 router.get('/:projectId', checkProjectAccess, getProject);
 
-// we have check access of admin or member in controllers so here we just check if user is authenticated
+// we have check access of creator in controllers so here we just check if user is authenticated
 router.put('/:projectId', checkProjectAccess, updateProject);
 router.delete('/:projectId', checkProjectAccess, deleteProject);
 router.post('/:projectId/remove-member', checkProjectAccess, removeMember);

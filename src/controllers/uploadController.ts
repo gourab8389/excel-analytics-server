@@ -122,6 +122,7 @@ export const getUploads = asyncHandler(async (req: any, res: Response) => {
 
   res.status(HTTP_STATUS.OK).json({
     success: true,
+    message: "Uploads retrieved successfully",
     data: { uploads },
   });
 });
@@ -153,6 +154,7 @@ export const getUpload = asyncHandler(async (req: Request, res: Response) => {
 
   res.status(HTTP_STATUS.OK).json({
     success: true,
+    message: "Upload details retrieved successfully",
     data: { upload },
   });
 });
