@@ -385,3 +385,67 @@ export const deleteProject = asyncHandler(async (req: any, res: Response) => {
     message: "Project deleted successfully",
   });
 });
+
+export const updateMemberRole = asyncHandler(
+  async (req: any, res: Response) => {
+    const { projectId } = req.params;
+    const { userId, role } = req.body;
+
+    // Validate input
+    if (!userId || !role) {
+      return res.status(HTTP_STATUS.BAD_REQUEST).json({
+        success: false,
+        message: "User ID and role are required",
+      });
+    }
+
+    // Get project and user's membership
+    const project = await prisma.project.findUnique({
+      where: { id: projectId },
+    });
+
+    if (!project) {
+      return res.status(HTTP_STATUS.NOT_FOUND).json({
+        success: false,
+        message: "Project not found",
+      });
+    }
+
+    const projectMember = await prisma.projectMember.findUnique({
+      where: {
+        userId_projectId: {
+          userId: req.user.id,
+          projectId,
+        },
+      },
+    });
+
+    // only project creator can update member roles
+    if (
+      !projectMember ||
+      (projectMember.role !== PROJECT_ROLES.ADMIN &&
+        project.creatorId !== req.user.id)
+    ) {
+      return res.status(HTTP_STATUS.FORBIDDEN).json({
+        success: false,
+        message: "You do not have permission to update member roles",
+      });
+    }
+
+    // Update member role
+    await prisma.projectMember.update({
+      where: {
+        userId_projectId: {
+          userId,
+          projectId,
+        },
+      },
+      data: { role },
+    });
+
+    res.status(HTTP_STATUS.OK).json({
+      success: true,
+      message: "Member role updated successfully",
+    });
+  }
+);
