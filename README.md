@@ -104,7 +104,9 @@ npm start
 - `POST /api/projects/:projectId/invite` - Invite user to project
 - `POST /api/projects/accept-invitation` - Accept project invitation
 - `PUT /api/projects/:projectId` - Update project details
-- `DELETE /api/projects/:projectId` - delete project
+- `DELETE /api/projects/:projectId` - Delete project
+- `POST /api/projects/:projectId/update-member` - Update member role
+- `DELETE /api/projects/:projectId/remove-member` - Remove a member from project
 
 ### File Uploads
 - `POST /api/uploads/:projectId` - Upload Excel file
