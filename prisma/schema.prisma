@@ -35,9 +35,10 @@ model Project {
   updatedAt   DateTime    @updatedAt
 
   // Relations
-  creator User @relation("ProjectCreator", fields: [creatorId], references: [id])
-  members ProjectMember[]
-  uploads Upload[]
+  creator     User @relation("ProjectCreator", fields: [creatorId], references: [id])
+  members     ProjectMember[]
+  uploads     Upload[]
+  invitations Invitation[] // Add this relation
 
   @@map("projects")
 }
@@ -115,6 +116,9 @@ model Invitation {
   status    InvitationStatus @default(PENDING)
   expiresAt DateTime
   createdAt DateTime         @default(now())
+
+  // Add this relation
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@map("invitations")
 }

@@ -20,3 +20,11 @@ export const generateInvitationToken = (
     expiresIn: '7d',
   });
 };
+
+export const verifyInvitationToken = (token: string): { email: string; projectId: string } => {
+  try {
+    return jwt.verify(token, JWT_SECRET) as { email: string; projectId: string };
+  } catch (error) {
+    throw new Error('Invalid or expired invitation token');
+  }
+};

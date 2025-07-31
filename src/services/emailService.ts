@@ -19,7 +19,7 @@ export const sendInvitationEmail = async (
   inviterName: string,
   invitationToken: string
 ) => {
-  const inviteLink = `${process.env.FRONTEND_URL}/accept-invitation?token=${invitationToken}`;
+  const inviteLink = `${process.env.FRONTEND_URL}/invitations/${invitationToken}`;
   
   const templatePath = path.join(__dirname, '../templates/email/invitation.html');
   let htmlTemplate = fs.readFileSync(templatePath, 'utf-8');
@@ -27,10 +27,11 @@ export const sendInvitationEmail = async (
   htmlTemplate = htmlTemplate
     .replace('{{projectName}}', projectName)
     .replace('{{inviterName}}', inviterName)
-    .replace('{{inviteLink}}', inviteLink);
+    .replace('{{inviteLink}}', inviteLink)
+    .replace('{{email}}', email);
 
   const mailOptions = {
-    from: `${process.env.FROM_NAME} <${senderEmail}>`,
+    from: `${process.env.FROM_NAME} <${process.env.FROM_EMAIL || senderEmail}>`,
     to: email,
     subject: `Invitation to join ${projectName}`,
     html: htmlTemplate,

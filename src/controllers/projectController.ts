@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import { asyncHandler } from "../middleware/errorHandler";
 import { createProjectSchema, inviteUserSchema } from "../utils/validation";
 import { HTTP_STATUS, PROJECT_ROLES, PROJECT_TYPES } from "../utils/constants";
-import { generateInvitationToken } from "../utils/jwt";
+import { generateInvitationToken, verifyInvitationToken } from "../utils/jwt";
 import { sendInvitationEmail } from "../services/emailService";
 import prisma from "../config/database";
 
@@ -184,6 +184,23 @@ export const inviteUser = asyncHandler(async (req: any, res: Response) => {
     }
   }
 
+  // Check for existing pending invitation
+  const existingInvitation = await prisma.invitation.findFirst({
+    where: {
+      email,
+      projectId,
+      status: "PENDING",
+      expiresAt: { gt: new Date() }
+    },
+  });
+
+  if (existingInvitation) {
+    return res.status(HTTP_STATUS.CONFLICT).json({
+      success: false,
+      message: "A pending invitation already exists for this email",
+    });
+  }
+
   // Generate invitation token
   const invitationToken = generateInvitationToken(email, projectId);
 
@@ -218,8 +235,80 @@ export const inviteUser = asyncHandler(async (req: any, res: Response) => {
   });
 });
 
-export const acceptInvitation = asyncHandler(
+// NEW: Get invitation details (for preview before accepting)
+export const getInvitationDetails = asyncHandler(
   async (req: Request, res: Response) => {
+    const { token } = req.params;
+
+    if (!token) {
+      return res.status(HTTP_STATUS.BAD_REQUEST).json({
+        success: false,
+        message: "Invitation token is required",
+      });
+    }
+
+    try {
+      // Verify token
+      const decoded = verifyInvitationToken(token);
+      
+      // Find invitation
+      const invitation = await prisma.invitation.findUnique({
+        where: { token },
+        include: {
+          project: {
+            select: {
+              id: true,
+              name: true,
+              description: true,
+              type: true,
+              creator: {
+                select: {
+                  firstName: true,
+                  lastName: true,
+                  email: true,
+                },
+              },
+            },
+          },
+        },
+      });
+
+      if (!invitation || invitation.expiresAt < new Date()) {
+        return res.status(HTTP_STATUS.BAD_REQUEST).json({
+          success: false,
+          message: "Invalid or expired invitation",
+        });
+      }
+
+      if (invitation.status !== "PENDING") {
+        return res.status(HTTP_STATUS.BAD_REQUEST).json({
+          success: false,
+          message: "Invitation has already been processed",
+        });
+      }
+
+      res.status(HTTP_STATUS.OK).json({
+        success: true,
+        data: {
+          invitation: {
+            email: invitation.email,
+            role: invitation.role,
+            expiresAt: invitation.expiresAt,
+            project: invitation.project,
+          },
+        },
+      });
+    } catch (error) {
+      return res.status(HTTP_STATUS.BAD_REQUEST).json({
+        success: false,
+        message: "Invalid invitation token",
+      });
+    }
+  }
+);
+
+export const acceptInvitation = asyncHandler(
+  async (req: any, res: Response) => {
     const { token } = req.body;
 
     if (!token) {
@@ -229,56 +318,113 @@ export const acceptInvitation = asyncHandler(
       });
     }
 
-    // Find invitation
-    const invitation = await prisma.invitation.findUnique({
-      where: { token },
-    });
+    try {
+      // Verify token
+      const decoded = verifyInvitationToken(token);
+      
+      // Find invitation
+      const invitation = await prisma.invitation.findUnique({
+        where: { token },
+        include: {
+          project: true,
+        },
+      });
 
-    if (!invitation || invitation.expiresAt < new Date()) {
+      if (!invitation || invitation.expiresAt < new Date()) {
+        return res.status(HTTP_STATUS.BAD_REQUEST).json({
+          success: false,
+          message: "Invalid or expired invitation",
+        });
+      }
+
+      if (invitation.status !== "PENDING") {
+        return res.status(HTTP_STATUS.BAD_REQUEST).json({
+          success: false,
+          message: "Invitation has already been processed",
+        });
+      }
+
+      // Get authenticated user
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(HTTP_STATUS.UNAUTHORIZED).json({
+          success: false,
+          message: "Authentication required to accept invitation",
+        });
+      }
+
+      // Find user
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+      });
+
+      if (!user) {
+        return res.status(HTTP_STATUS.NOT_FOUND).json({
+          success: false,
+          message: "User not found",
+        });
+      }
+
+      // Check if invitation email matches user email
+      if (user.email !== invitation.email) {
+        return res.status(HTTP_STATUS.FORBIDDEN).json({
+          success: false,
+          message: "This invitation is not for your email address",
+        });
+      }
+
+      // Check if user is already a member
+      const existingMember = await prisma.projectMember.findUnique({
+        where: {
+          userId_projectId: {
+            userId: user.id,
+            projectId: invitation.projectId,
+          },
+        },
+      });
+
+      if (existingMember) {
+        // Update invitation status even if already a member
+        await prisma.invitation.update({
+          where: { id: invitation.id },
+          data: { status: "ACCEPTED" },
+        });
+
+        return res.status(HTTP_STATUS.CONFLICT).json({
+          success: false,
+          message: "You are already a member of this project",
+        });
+      }
+
+      // Add user to project
+      await prisma.projectMember.create({
+        data: {
+          userId: user.id,
+          projectId: invitation.projectId,
+          role: invitation.role,
+        },
+      });
+
+      // Update invitation status
+      await prisma.invitation.update({
+        where: { id: invitation.id },
+        data: { status: "ACCEPTED" },
+      });
+
+      res.status(HTTP_STATUS.OK).json({
+        success: true,
+        message: "Invitation accepted successfully",
+        data: {
+          project: invitation.project,
+          role: invitation.role,
+        },
+      });
+    } catch (error) {
       return res.status(HTTP_STATUS.BAD_REQUEST).json({
         success: false,
-        message: "Invalid or expired invitation",
+        message: "Invalid invitation token",
       });
     }
-
-    if (invitation.status !== "PENDING") {
-      return res.status(HTTP_STATUS.BAD_REQUEST).json({
-        success: false,
-        message: "Invitation has already been processed",
-      });
-    }
-
-    // Find or create user
-    let user = await prisma.user.findUnique({
-      where: { email: invitation.email },
-    });
-
-    if (!user) {
-      return res.status(HTTP_STATUS.BAD_REQUEST).json({
-        success: false,
-        message: "Please register an account first",
-      });
-    }
-
-    // Add user to project
-    await prisma.projectMember.create({
-      data: {
-        userId: user.id,
-        projectId: invitation.projectId,
-        role: invitation.role,
-      },
-    });
-
-    // Update invitation status
-    await prisma.invitation.update({
-      where: { id: invitation.id },
-      data: { status: "ACCEPTED" },
-    });
-
-    res.status(HTTP_STATUS.OK).json({
-      success: true,
-      message: "Invitation accepted successfully",
-    });
   }
 );
 
@@ -499,4 +645,4 @@ export const removeMember = asyncHandler(async (req: any, res: Response) => {
     success: true,
     message: "Member removed successfully",
   });
-})
+});

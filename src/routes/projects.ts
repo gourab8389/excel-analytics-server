@@ -9,6 +9,7 @@ import {
   deleteProject,
   removeMember,
   updateMemberRole,
+  getInvitationDetails,
 } from '../controllers/projectController';
 import { authenticate } from '../middleware/auth';
 import { checkProjectAccess, requireProjectAdmin } from '../middleware/roleCheck';
@@ -16,6 +17,8 @@ import { checkProjectAccess, requireProjectAdmin } from '../middleware/roleCheck
 const router = Router();
 
 router.use(authenticate);
+
+router.get('/invitation/:token', getInvitationDetails);
 
 router.post('/', createProject);
 router.get('/', getUserProjects);
