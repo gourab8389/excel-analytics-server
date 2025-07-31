@@ -235,7 +235,6 @@ export const inviteUser = asyncHandler(async (req: any, res: Response) => {
   });
 });
 
-// NEW: Get invitation details (for preview before accepting)
 export const getInvitationDetails = asyncHandler(
   async (req: Request, res: Response) => {
     const { token } = req.params;
@@ -263,7 +262,13 @@ export const getInvitationDetails = asyncHandler(
         include: {
           project: {
             include: {
-              creator: true,
+              creator: {
+                select: {
+                  firstName: true,
+                  lastName: true,
+                  email: true,
+                },
+              },
             },
           },
         },
@@ -332,7 +337,14 @@ export const acceptInvitation = asyncHandler(
       const invitation = await prisma.invitation.findUnique({
         where: { token },
         include: {
-          project: true,
+          project: {
+            select: {
+              id: true,
+              name: true,
+              description: true,
+              type: true,
+            },
+          },
         },
       });
 
