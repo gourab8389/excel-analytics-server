@@ -263,13 +263,7 @@ export const getInvitationDetails = asyncHandler(
         include: {
           project: {
             include: {
-              creator: {
-                select: {
-                  firstName: true,
-                  lastName: true,
-                  email: true,
-                },
-              },
+              creator: true,
             },
           },
         },
@@ -296,7 +290,17 @@ export const getInvitationDetails = asyncHandler(
             email: invitation.email,
             role: invitation.role,
             expiresAt: invitation.expiresAt,
-            project: invitation.project,
+            project: {
+              id: invitation.project.id,
+              name: invitation.project.name,
+              description: invitation.project.description,
+              type: invitation.project.type,
+              creator: {
+                firstName: invitation.project.creator.firstName,
+                lastName: invitation.project.creator.lastName,
+                email: invitation.project.creator.email,
+              },
+            },
           },
         },
       });
