@@ -235,6 +235,7 @@ export const inviteUser = asyncHandler(async (req: any, res: Response) => {
   });
 });
 
+// NEW: Get invitation details (for preview before accepting)
 export const getInvitationDetails = asyncHandler(
   async (req: Request, res: Response) => {
     const { token } = req.params;
@@ -256,22 +257,9 @@ export const getInvitationDetails = asyncHandler(
         });
       }
 
-      // Find invitation
+      // Find invitation first
       const invitation = await prisma.invitation.findUnique({
         where: { token },
-        include: {
-          project: {
-            include: {
-              creator: {
-                select: {
-                  firstName: true,
-                  lastName: true,
-                  email: true,
-                },
-              },
-            },
-          },
-        },
       });
 
       if (!invitation || invitation.expiresAt < new Date()) {
@@ -288,6 +276,27 @@ export const getInvitationDetails = asyncHandler(
         });
       }
 
+      // Get project and creator separately
+      const project = await prisma.project.findUnique({
+        where: { id: invitation.projectId },
+      });
+
+      const creator = await prisma.user.findUnique({
+        where: { id: project?.creatorId },
+        select: {
+          firstName: true,
+          lastName: true,
+          email: true,
+        },
+      });
+
+      if (!project || !creator) {
+        return res.status(HTTP_STATUS.NOT_FOUND).json({
+          success: false,
+          message: "Project or creator not found",
+        });
+      }
+
       res.status(HTTP_STATUS.OK).json({
         success: true,
         data: {
@@ -296,14 +305,14 @@ export const getInvitationDetails = asyncHandler(
             role: invitation.role,
             expiresAt: invitation.expiresAt,
             project: {
-              id: invitation.project.id,
-              name: invitation.project.name,
-              description: invitation.project.description,
-              type: invitation.project.type,
+              id: project.id,
+              name: project.name,
+              description: project.description,
+              type: project.type,
               creator: {
-                firstName: invitation.project.creator.firstName,
-                lastName: invitation.project.creator.lastName,
-                email: invitation.project.creator.email,
+                firstName: creator.firstName,
+                lastName: creator.lastName,
+                email: creator.email,
               },
             },
           },
@@ -333,19 +342,9 @@ export const acceptInvitation = asyncHandler(
       // Verify token
       const decoded = verifyInvitationToken(token);
 
-      // Find invitation
+      // Find invitation first
       const invitation = await prisma.invitation.findUnique({
         where: { token },
-        include: {
-          project: {
-            select: {
-              id: true,
-              name: true,
-              description: true,
-              type: true,
-            },
-          },
-        },
       });
 
       if (!invitation || invitation.expiresAt < new Date()) {
@@ -359,6 +358,24 @@ export const acceptInvitation = asyncHandler(
         return res.status(HTTP_STATUS.BAD_REQUEST).json({
           success: false,
           message: "Invitation has already been processed",
+        });
+      }
+
+      // Get project separately
+      const project = await prisma.project.findUnique({
+        where: { id: invitation.projectId },
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          type: true,
+        },
+      });
+
+      if (!project) {
+        return res.status(HTTP_STATUS.NOT_FOUND).json({
+          success: false,
+          message: "Project not found",
         });
       }
 
@@ -433,7 +450,7 @@ export const acceptInvitation = asyncHandler(
         success: true,
         message: "Invitation accepted successfully",
         data: {
-          project: invitation.project,
+          project: project,
           role: invitation.role,
         },
       });
