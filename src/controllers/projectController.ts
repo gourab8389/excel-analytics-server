@@ -190,7 +190,7 @@ export const inviteUser = asyncHandler(async (req: any, res: Response) => {
       email,
       projectId,
       status: "PENDING",
-      expiresAt: { gt: new Date() }
+      expiresAt: { gt: new Date() },
     },
   });
 
@@ -250,17 +250,19 @@ export const getInvitationDetails = asyncHandler(
     try {
       // Verify token
       const decoded = verifyInvitationToken(token);
-      
+      if (!decoded || !decoded.email || !decoded.projectId) {
+        return res.status(HTTP_STATUS.BAD_REQUEST).json({
+          success: false,
+          message: "Invalid invitation token",
+        });
+      }
+
       // Find invitation
       const invitation = await prisma.invitation.findUnique({
         where: { token },
         include: {
           project: {
-            select: {
-              id: true,
-              name: true,
-              description: true,
-              type: true,
+            include: {
               creator: {
                 select: {
                   firstName: true,
@@ -321,7 +323,7 @@ export const acceptInvitation = asyncHandler(
     try {
       // Verify token
       const decoded = verifyInvitationToken(token);
-      
+
       // Find invitation
       const invitation = await prisma.invitation.findUnique({
         where: { token },
