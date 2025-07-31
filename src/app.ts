@@ -36,7 +36,7 @@ app.use('/api', limiter);
 
 // CORS configuration
 const getAllowedOrigins = () => {
-  const frontendUrls = process.env.FRONTEND_URLS || 'http://localhost:3000';
+  const frontendUrls = process.env.ORIGIN_URLS || 'http://localhost:3000';
   
   // Split by comma and trim whitespace
   return frontendUrls.split(',').map(url => url.trim());
