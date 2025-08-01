@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { asyncHandler } from '../middleware/errorHandler';
-import { registerSchema, loginSchema } from '../utils/validation';
+import { registerSchema, loginSchema, updateProfileSchema } from '../utils/validation';
 import { hashPassword, comparePassword } from '../utils/helpers';
 import { generateToken } from '../utils/jwt';
 import { HTTP_STATUS } from '../utils/constants';
@@ -130,5 +130,46 @@ export const getProfile = asyncHandler(async (req: any, res: Response) => {
     success: true,
     message: 'User profile fetched successfully',
     data: { user },
+  });
+});
+
+export const updateProfile = asyncHandler(async (req: any, res: Response) => {
+  const userId = req.user.id;
+  const { firstName, lastName } = req.body;
+
+  const { error } = updateProfileSchema.validate(req.body);
+
+  if (error) {
+    return res.status(HTTP_STATUS.BAD_REQUEST).json({
+      success: false,
+      message: error.details[0].message,
+    });
+  }
+
+  const user = await prisma.user.update({
+    where: { id: userId },
+    data: {
+      firstName,
+      lastName,
+    },
+  });
+
+  res.status(HTTP_STATUS.OK).json({
+    success: true,
+    message: 'User profile updated successfully',
+    data: { user },
+  });
+});
+
+export const deleteAccount = asyncHandler(async (req: any, res: Response) => {
+  const userId = req.user.id;
+
+  await prisma.user.delete({
+    where: { id: userId },
+  });
+
+  res.status(HTTP_STATUS.OK).json({
+    success: true,
+    message: 'User account deleted successfully',
   });
 });
