@@ -135,9 +135,7 @@ export const getProfile = asyncHandler(async (req: any, res: Response) => {
 
 export const updateProfile = asyncHandler(async (req: any, res: Response) => {
   const userId = req.user.id;
-  const { firstName, lastName } = req.body;
-
-  const { error } = updateProfileSchema.validate(req.body);
+  const { error, value } = updateProfileSchema.validate(req.body);
 
   if (error) {
     return res.status(HTTP_STATUS.BAD_REQUEST).json({
@@ -146,24 +144,58 @@ export const updateProfile = asyncHandler(async (req: any, res: Response) => {
     });
   }
 
-  const user = await prisma.user.update({
+  const { firstName, lastName } = value;
+
+  // Check if user exists
+  const existingUser = await prisma.user.findUnique({
+    where: { id: userId },
+  });
+
+  if (!existingUser) {
+    return res.status(HTTP_STATUS.NOT_FOUND).json({
+      success: false,
+      message: 'User not found',
+    });
+  }
+
+  const updatedUser = await prisma.user.update({
     where: { id: userId },
     data: {
       firstName,
       lastName,
+    },
+    select: {
+      id: true,
+      email: true,
+      firstName: true,
+      lastName: true,
+      createdAt: true,
     },
   });
 
   res.status(HTTP_STATUS.OK).json({
     success: true,
     message: 'User profile updated successfully',
-    data: { user },
+    data: { user: updatedUser },
   });
 });
 
 export const deleteAccount = asyncHandler(async (req: any, res: Response) => {
   const userId = req.user.id;
 
+  // Check if user exists
+  const existingUser = await prisma.user.findUnique({
+    where: { id: userId },
+  });
+
+  if (!existingUser) {
+    return res.status(HTTP_STATUS.NOT_FOUND).json({
+      success: false,
+      message: 'User not found',
+    });
+  }
+
+  // Delete user and all related data (cascading delete)
   await prisma.user.delete({
     where: { id: userId },
   });
