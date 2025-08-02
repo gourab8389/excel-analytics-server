@@ -577,7 +577,15 @@ export const updateMemberRole = asyncHandler(
       });
     }
 
-    // Get project and user's membership
+    // Validate role value
+    if (!Object.values(PROJECT_ROLES).includes(role)) {
+      return res.status(HTTP_STATUS.BAD_REQUEST).json({
+        success: false,
+        message: "Invalid role specified",
+      });
+    }
+
+    // Get project
     const project = await prisma.project.findUnique({
       where: { id: projectId },
     });
@@ -589,20 +597,36 @@ export const updateMemberRole = asyncHandler(
       });
     }
 
-    const projectMember = await prisma.projectMember.findUnique({
+    // Only project creator can update member roles
+    if (project.creatorId !== req.user.id) {
+      return res.status(HTTP_STATUS.FORBIDDEN).json({
+        success: false,
+        message: "Only project creator can update member roles",
+      });
+    }
+
+    // Prevent creator from updating their own role
+    if (userId === req.user.id) {
+      return res.status(HTTP_STATUS.FORBIDDEN).json({
+        success: false,
+        message: "Cannot update your own role",
+      });
+    }
+
+    // Check if the member exists
+    const memberToUpdate = await prisma.projectMember.findUnique({
       where: {
         userId_projectId: {
-          userId: req.user.id,
+          userId,
           projectId,
         },
       },
     });
 
-    // only project creator can update member roles
-    if (!projectMember && project.creatorId !== req.user.id) {
-      return res.status(HTTP_STATUS.FORBIDDEN).json({
+    if (!memberToUpdate) {
+      return res.status(HTTP_STATUS.NOT_FOUND).json({
         success: false,
-        message: "You do not have permission to update member roles",
+        message: "Member not found in this project",
       });
     }
 
