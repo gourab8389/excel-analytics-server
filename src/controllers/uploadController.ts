@@ -97,16 +97,40 @@ export const getUploads = asyncHandler(async (req: any, res: Response) => {
   const { projectId } = req.params;
   const userId = req.user.id;
 
+  // Check if user is a member of the project
+  const projectMember = await prisma.projectMember.findUnique({
+    where: {
+      userId_projectId: {
+        userId,
+        projectId,
+      },
+    },
+  });
+
+  if (!projectMember) {
+    return res.status(HTTP_STATUS.FORBIDDEN).json({
+      success: false,
+      message: "You are not a member of this project",
+    });
+  }
+
+  // Get all uploads for the project (not just user's uploads)
   const uploads = await prisma.upload.findMany({
     where: {
       projectId,
-      userId,
     },
     include: {
       data: {
         select: {
           headers: true,
           metadata: true,
+        },
+      },
+      user: {
+        select: {
+          firstName: true,
+          lastName: true,
+          email: true,
         },
       },
       _count: {
@@ -166,7 +190,9 @@ export const deleteUpload = asyncHandler(async (req: any, res: Response) => {
   const upload = await prisma.upload.findFirst({
     where: {
       id: uploadId,
-      userId,
+    },
+    include: {
+      project: true,
     },
   });
 
@@ -174,6 +200,14 @@ export const deleteUpload = asyncHandler(async (req: any, res: Response) => {
     return res.status(HTTP_STATUS.NOT_FOUND).json({
       success: false,
       message: "Upload not found",
+    });
+  }
+
+  // Only creator of upload or project creator can delete
+  if (upload.userId !== userId && upload.project.creatorId !== userId) {
+    return res.status(HTTP_STATUS.FORBIDDEN).json({
+      success: false,
+      message: "You can only delete your own uploads or you must be the project creator",
     });
   }
 

@@ -19,8 +19,54 @@ export const createProject = asyncHandler(async (req: any, res: Response) => {
   const { name, description, type } = value;
   const userId = req.user.id;
 
-  // Create project
-  const project = await prisma.project.create({
+  let project;
+
+  if (type === PROJECT_TYPES.ORGANIZATION) {
+    // For organization projects, check if one already exists with the same name
+    project = await prisma.project.findFirst({
+      where: {
+        name,
+        type: PROJECT_TYPES.ORGANIZATION,
+      },
+    });
+
+    if (project) {
+      // Check if user is already a member
+      const existingMember = await prisma.projectMember.findUnique({
+        where: {
+          userId_projectId: {
+            userId,
+            projectId: project.id,
+          },
+        },
+      });
+
+      if (existingMember) {
+        return res.status(HTTP_STATUS.CONFLICT).json({
+          success: false,
+          message: "You are already a member of this organization",
+        });
+      }
+
+      // Add user as member to existing organization
+      await prisma.projectMember.create({
+        data: {
+          userId,
+          projectId: project.id,
+          role: PROJECT_ROLES.MEMBER,
+        },
+      });
+
+      return res.status(HTTP_STATUS.OK).json({
+        success: true,
+        message: "Joined existing organization successfully",
+        data: { project },
+      });
+    }
+  }
+
+  // Create new project (for SINGLE type or new ORGANIZATION)
+  project = await prisma.project.create({
     data: {
       name,
       description,
