@@ -637,7 +637,7 @@ export const removeMember = asyncHandler(async (req: any, res: Response) => {
     });
   }
 
-  // Get project and user's membership
+  // Get project
   const project = await prisma.project.findUnique({
     where: { id: projectId },
   });
@@ -649,20 +649,36 @@ export const removeMember = asyncHandler(async (req: any, res: Response) => {
     });
   }
 
-  const projectMember = await prisma.projectMember.findUnique({
+  // Check if current user is the creator
+  if (project.creatorId !== req.user.id) {
+    return res.status(HTTP_STATUS.FORBIDDEN).json({
+      success: false,
+      message: "You do not have permission to remove members",
+    });
+  }
+
+  // Prevent creator from removing themselves
+  if (userId === req.user.id) {
+    return res.status(HTTP_STATUS.FORBIDDEN).json({
+      success: false,
+      message: "Project creator cannot remove themselves",
+    });
+  }
+
+  // Check if the member exists before trying to delete
+  const memberToRemove = await prisma.projectMember.findUnique({
     where: {
       userId_projectId: {
-        userId: req.user.id,
+        userId,
         projectId,
       },
     },
   });
 
-  // only project creator can remove members
-  if (!projectMember && project.creatorId !== req.user.id) {
-    return res.status(HTTP_STATUS.FORBIDDEN).json({
+  if (!memberToRemove) {
+    return res.status(HTTP_STATUS.NOT_FOUND).json({
       success: false,
-      message: "You do not have permission to remove members",
+      message: "Member not found in this project",
     });
   }
 
