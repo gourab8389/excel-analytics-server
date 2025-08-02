@@ -235,7 +235,6 @@ export const inviteUser = asyncHandler(async (req: any, res: Response) => {
   });
 });
 
-// NEW: Get invitation details (for preview before accepting)
 export const getInvitationDetails = asyncHandler(
   async (req: Request, res: Response) => {
     const { token } = req.params;
