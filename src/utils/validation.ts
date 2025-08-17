@@ -17,6 +17,11 @@ export const updateProfileSchema = Joi.object({
   lastName: Joi.string().min(2).optional(),
 });
 
+export const changePasswordSchema = Joi.object({
+  currentPassword: Joi.string().required(),
+  newPassword: Joi.string().min(6).required(),
+});
+
 export const createProjectSchema = Joi.object({
   name: Joi.string().min(3).max(100).required(),
   description: Joi.string().max(500).allow('').optional(),
